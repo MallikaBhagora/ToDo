@@ -1,14 +1,31 @@
 const express = require("express");
 const bodyParser = require("body-parser");
+const mongoose = require("mongoose");
 
 const app = express();
-var titles = ["add","delete","update"];
-//var descriptions =[];
+
+app.set('view engine', 'ejs');
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(express.static("public"));
 
-app.set('view engine', 'ejs');
+mongoose.connect("mongodb://localhost:27017/todolistDB",{ useNewUrlParser:true});
+const titleSchema ={
+  name: String
+};
+const Title = mongoose.model("Title",titleSchema);
+
+const title1 = new Title({
+  name: "Welcome to your ToDo List!"
+});
+const title2 = new Title({
+  name: "Hit Enter or + button to add a new item."
+});
+const title3 = new Title({
+  name: "<-- Hit this to delete an item."
+});
+
+const defaultTitle = [title1, title2, title3];
 
 app.get("/", function(req, res) {
   var today = new Date();
@@ -21,23 +38,56 @@ app.get("/", function(req, res) {
 
   var day = today.toLocaleDateString("en-US", options);
 
-  res.render("list", {
-    kindDay: day,
-    newTitles: titles,
-    //  newDescriptions:descriptions
+
+  Title.find({},function(err, foundItems){
+
+    if(foundItems.length === 0){
+      Title.insertMany(defaultTitle,function(err){
+          if(err){
+            console.log(err);
+          }
+          else{
+            console.log("Successfully saved default items to DB.");
+          }
+      });
+      res.redirect("/");
+    }
+    else{
+      res.render("list", {
+        kindDay: day,
+       newTitles: foundItems
+        //  newDescriptions:descriptions
+      });
+    }
+
+
   });
+
 });
 
 app.post("/", function(req, res) {
-  var title = req.body.title;
+  const titleName = req.body.title;
   //  var description = req.body.description;
 
-  titles.push(title);
+  const title = new Title({
+    name: titleName
+  });
+  title.save();
   //  descriptions.push(description);
 
   res.redirect("/");
 });
 
+app.post("/delete",function(req,res){
+  const checkedItemId = req.body.checkbox;
+
+  Title.findByIdAndRemove(checkedItemId,function(err){
+    if(!err){
+      console.log("Successfully deleted checked item");
+      res.redirect("/");
+    }
+  });
+});
 
 app.listen(3000, function(req, res) {
   console.log("Server started at port 3000");
